@@ -8,6 +8,7 @@ from app.routers.users import router as users_router
 from app.routers.barangays import router as barangays_router
 from app.routers.shelters import router as shelters_router
 from app.routers.analytics import router as analytics_router
+from app.routers.pwm import router as pwm_router
 
 
 def create_app() -> FastAPI:
@@ -26,9 +27,9 @@ def create_app() -> FastAPI:
     app.include_router(barangays_router, prefix="/api/barangays", tags=["barangays"])
     app.include_router(shelters_router, prefix="/api/shelters", tags=["shelters"])
     app.include_router(analytics_router, prefix="/api/analytics")
+    app.include_router(pwm_router, prefix="/api/pwm", tags=["pwm"])
 
     return app
 
 
 app = create_app()
-

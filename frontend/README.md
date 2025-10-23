@@ -34,3 +34,24 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Notes about Tailwind CSS and local dev
+
+This project uses Tailwind utility classes in `app/` pages and components. If you run into styling issues (missing utilities) make sure to:
+
+1. Install dependencies from the `frontend/` directory:
+
+```powershell
+cd frontend
+npm install
+```
+
+2. Start the dev server:
+
+```powershell
+npm run dev
+```
+
+3. If Tailwind utilities are missing, ensure `tailwind.config.cjs` is present (this repo includes one at the project root of `frontend/`) and that `postcss.config.mjs` contains the `tailwindcss` and `autoprefixer` plugins.
+
+If you prefer not to use Turbopack during development, edit the `dev` script in `package.json` to remove `--turbopack` or run `npm run dev -- --turbo=false`.
