@@ -2,32 +2,47 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Download, Map, Shield, Users, AlertTriangle } from "lucide-react";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 export default function Home() {
-  const [promptEvent, setPromptEvent] = useState<any>(null);
-  const [installed, setInstalled] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
-    const onBeforeInstall = (e: any) => {
+    const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
-      setPromptEvent(e);
+      setDeferredPrompt(e);
     };
-    const onInstalled = () => setInstalled(true);
-    window.addEventListener("beforeinstallprompt", onBeforeInstall);
-    window.addEventListener("appinstalled", onInstalled);
+
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
     return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
-      window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
   const handleInstall = async () => {
-    if (!promptEvent) return;
-    promptEvent.prompt();
-    const choice = await promptEvent.userChoice;
-    if (choice.outcome === "accepted") setInstalled(true);
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+      }
+      setDeferredPrompt(null);
+    }
   };
 
   return (
@@ -44,13 +59,13 @@ export default function Home() {
               <Button variant="outline" asChild>
                 <a href="/gis">GIS Dashboard</a>
               </Button>
-              {promptEvent && !installed && (
+              {deferredPrompt && !isInstalled && (
                 <Button onClick={handleInstall} className="bg-blue-600 hover:bg-blue-700">
                   <Download className="h-4 w-4 mr-2" />
                   Install App
                 </Button>
               )}
-              {installed && (
+              {isInstalled && (
                 <span className="text-green-600 font-medium">✓ Installed</span>
               )}
             </div>
@@ -122,14 +137,21 @@ export default function Home() {
             Install the SAGIP PWA for offline access and native app experience
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button 
-              onClick={handleInstall} 
-              disabled={!promptEvent || installed}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {installed ? "App Installed" : "Install PWA"}
-            </Button>
+            {deferredPrompt && !isInstalled && (
+              <Button onClick={handleInstall} className="bg-blue-600 hover:bg-blue-700">
+                <Download className="h-4 w-4 mr-2" />
+                Install PWA
+              </Button>
+            )}
+            {!deferredPrompt && !isInstalled && (
+              <Button 
+                onClick={() => alert('Install prompt not available. Try opening in Chrome/Edge on Android or check if app is already installed.')} 
+                className="bg-gray-600 hover:bg-gray-700"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Install PWA (Manual)
+              </Button>
+            )}
             <Button variant="outline" asChild>
               <a href="/gis">View GIS Dashboard</a>
             </Button>
@@ -137,9 +159,14 @@ export default function Home() {
               <a href="/install">Learn More</a>
             </Button>
           </div>
-          {!promptEvent && !installed && (
+          {!deferredPrompt && !isInstalled && (
             <p className="text-sm text-gray-500 mt-4">
               Tip: Open this site in Chrome/Edge on Android to see the install prompt
+            </p>
+          )}
+          {isInstalled && (
+            <p className="text-sm text-green-600 mt-4">
+              ✅ SAGIP app installed successfully!
             </p>
           )}
         </div>
