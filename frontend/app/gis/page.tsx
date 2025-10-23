@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Map, Layers, AlertTriangle, Users, Home, ArrowLeft } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Map, Layers, AlertTriangle, Users, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -30,28 +30,27 @@ export default function GISPage() {
     hazards: "mock",
     centers: "mock"
   });
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         
-        // Fetch hazard data from backend API
         const hazardsResponse = await fetch('http://localhost:8000/api/hazards/geojson');
         const hazardsGeoJSON = await hazardsResponse.json();
         
-        // Fetch evacuation centers from backend API
         const centersResponse = await fetch('http://localhost:8000/api/evacuation/geojson');
         const centersGeoJSON = await centersResponse.json();
         
-        // Transform GeoJSON features to our format
         const hazards = hazardsGeoJSON.features.map((feature: any) => ({
           id: feature.properties.id,
           type: feature.properties.type,
           severity: feature.properties.severity,
           coordinates: feature.geometry.type === 'Point' 
             ? feature.geometry.coordinates 
-            : [feature.geometry.coordinates[0][0][0], feature.geometry.coordinates[0][0][1]], // Get centroid for polygons
+            : [feature.geometry.coordinates[0][0][0], feature.geometry.coordinates[0][0][1]],
           source: feature.properties.source,
           confidence: feature.properties.confidence,
           elevation: feature.properties.elevation,
@@ -76,58 +75,22 @@ export default function GISPage() {
         setLoading(false);
       } catch (error) {
         console.error("Error fetching data from backend:", error);
-        
-        // Fallback to Batong Malake-specific mock data if backend is not available
-        const batongMalakeHazards = [
-          {
-            id: 1,
-            type: "FLOOD",
-            severity: 3,
-            coordinates: [121.24, 14.165], // Batong Malake coordinates
-            source: "UP_NOAH",
-            confidence: 0.85
-          },
-          {
-            id: 2,
-            type: "LANDSLIDE",
-            severity: 4,
-            coordinates: [121.235, 14.17],
-            source: "UP_NOAH",
-            confidence: 0.92
-          },
-          {
-            id: 3,
-            type: "FLOOD",
-            severity: 2,
-            coordinates: [121.238, 14.162],
-            source: "UP_NOAH",
-            confidence: 0.78
-          }
+
+        // Fallback mock data
+        const mockHazards = [
+          { id: 1, type: "FLOOD", severity: 3, coordinates: [121.24, 14.165], source: "UP_NOAH", confidence: 0.85 },
+          { id: 2, type: "LANDSLIDE", severity: 4, coordinates: [121.235, 14.17], source: "UP_NOAH", confidence: 0.92 },
+          { id: 3, type: "FLOOD", severity: 2, coordinates: [121.238, 14.162], source: "UP_NOAH", confidence: 0.78 }
         ];
 
-        const batongMalakeCenters = [
-          {
-            id: 1,
-            name: "Batong Malake Elementary School",
-            coordinates: [121.24, 14.165],
-            capacity: 200
-          },
-          {
-            id: 2,
-            name: "UP Los Baños Gymnasium",
-            coordinates: [121.238, 14.168],
-            capacity: 300
-          },
-          {
-            id: 3,
-            name: "Barangay Batong Malake Hall",
-            coordinates: [121.235, 14.162],
-            capacity: 150
-          }
+        const mockCenters = [
+          { id: 1, name: "Batong Malake Elementary School", coordinates: [121.24, 14.165], capacity: 200 },
+          { id: 2, name: "UP Los Baños Gymnasium", coordinates: [121.238, 14.168], capacity: 300 },
+          { id: 3, name: "Barangay Batong Malake Hall", coordinates: [121.235, 14.162], capacity: 150 }
         ];
 
-        setHazardData(batongMalakeHazards);
-        setEvacuationCenters(batongMalakeCenters);
+        setHazardData(mockHazards);
+        setEvacuationCenters(mockCenters);
         setApiStatus({
           backend: "disconnected",
           hazards: "mock",
@@ -138,6 +101,25 @@ export default function GISPage() {
     };
 
     fetchData();
+  }, []);
+
+  // 🔔 Mock LGU sync banner feature
+  useEffect(() => {
+    const syncLGUPlans = () => {
+      setSyncMessage("🔄 Syncing with LGU... Checking for updated hazard and evacuation plans.");
+
+      setTimeout(() => {
+        const now = new Date().toLocaleTimeString();
+        setLastSync(now);
+        setSyncMessage("✅ LGU Sync Complete — Local plans updated successfully.");
+        setTimeout(() => setSyncMessage(null), 4000);
+      }, 2000);
+    };
+
+    syncLGUPlans(); // initial sync
+    const interval = setInterval(syncLGUPlans, 30000); // repeat every 30s
+
+    return () => clearInterval(interval);
   }, []);
 
   const getHazardColor = (type: string, severity: number) => {
@@ -156,6 +138,13 @@ export default function GISPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Mock LGU Sync Banner */}
+      {syncMessage && (
+        <div className="bg-blue-100 text-blue-800 text-center py-2 text-sm font-medium border-b border-blue-300">
+          {syncMessage}
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -180,6 +169,7 @@ export default function GISPage() {
         </div>
       </header>
 
+      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Map Area */}
@@ -295,25 +285,19 @@ export default function GISPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Backend API</span>
-                    <span className={`text-sm ${
-                      apiStatus.backend === "connected" ? "text-green-500" : "text-red-500"
-                    }`}>
+                    <span className={`text-sm ${apiStatus.backend === "connected" ? "text-green-500" : "text-red-500"}`}>
                       {apiStatus.backend === "connected" ? "Connected" : "Disconnected"}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Hazard Data</span>
-                    <span className={`text-sm ${
-                      apiStatus.hazards === "live" ? "text-green-500" : "text-yellow-500"
-                    }`}>
+                    <span className={`text-sm ${apiStatus.hazards === "live" ? "text-green-500" : "text-yellow-500"}`}>
                       {apiStatus.hazards === "live" ? "Live Data" : "Mock Data"}
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Evacuation Centers</span>
-                    <span className={`text-sm ${
-                      apiStatus.centers === "live" ? "text-green-500" : "text-yellow-500"
-                    }`}>
+                    <span className={`text-sm ${apiStatus.centers === "live" ? "text-green-500" : "text-yellow-500"}`}>
                       {apiStatus.centers === "live" ? "Live Data" : "Mock Data"}
                     </span>
                   </div>
@@ -321,35 +305,10 @@ export default function GISPage() {
                     <span className="text-sm">Location</span>
                     <span className="text-sm text-blue-500">Batong Malake, Los Baños</span>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Debug Info */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Debug Info</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span>Hazards:</span>
-                    <span>{hazardData.length}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Last LGU Sync</span>
+                    <span className="text-sm text-gray-700">{lastSync || "Pending..."}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Centers:</span>
-                    <span>{evacuationCenters.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Filtered:</span>
-                    <span>{filteredHazards.length}</span>
-                  </div>
-                  {hazardData.length > 0 && (
-                    <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
-                      <div>First hazard: {hazardData[0].type}</div>
-                      <div>Coords: {hazardData[0].coordinates.join(', ')}</div>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>
