@@ -1,102 +1,162 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Download, Map, Shield, Users, AlertTriangle } from "lucide-react";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [promptEvent, setPromptEvent] = useState<any>(null);
+  const [installed, setInstalled] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    const onBeforeInstall = (e: any) => {
+      e.preventDefault();
+      setPromptEvent(e);
+    };
+    const onInstalled = () => setInstalled(true);
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!promptEvent) return;
+    promptEvent.prompt();
+    const choice = await promptEvent.userChoice;
+    if (choice.outcome === "accepted") setInstalled(true);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-3">
+              <Shield className="h-8 w-8 text-blue-600" />
+              <h1 className="text-2xl font-bold text-gray-900">SAGIP</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Button variant="outline" asChild>
+                <a href="/gis">GIS Dashboard</a>
+              </Button>
+              {promptEvent && !installed && (
+                <Button onClick={handleInstall} className="bg-blue-600 hover:bg-blue-700">
+                  <Download className="h-4 w-4 mr-2" />
+                  Install App
+                </Button>
+              )}
+              {installed && (
+                <span className="text-green-600 font-medium">✓ Installed</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            Synchronizing Action through Geohazard Information Platform
+          </h2>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Empowering barangay-level LGUs with data-driven disaster risk reduction 
+            through modern technical approaches and real-time coordination.
+          </p>
+        </div>
+
+        {/* Feature Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <Map className="h-8 w-8 text-blue-600 mb-2" />
+              <CardTitle>Geohazard Maps</CardTitle>
+              <CardDescription>
+                Interactive maps with flood, landslide, and storm surge data
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <Users className="h-8 w-8 text-green-600 mb-2" />
+              <CardTitle>Evacuation Coordination</CardTitle>
+              <CardDescription>
+                Synchronize evacuees and rescuers with optimal routes
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <AlertTriangle className="h-8 w-8 text-orange-600 mb-2" />
+              <CardTitle>Early Warning System</CardTitle>
+              <CardDescription>
+                Real-time alerts and priority-based evacuation planning
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <Shield className="h-8 w-8 text-purple-600 mb-2" />
+              <CardTitle>Community Resilience</CardTitle>
+              <CardDescription>
+                Build stronger, more prepared communities
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+
+        {/* CTA Section */}
+        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+            Ready to Get Started?
+          </h3>
+          <p className="text-gray-600 mb-6">
+            Install the SAGIP PWA for offline access and native app experience
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={handleInstall} 
+              disabled={!promptEvent || installed}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {installed ? "App Installed" : "Install PWA"}
+            </Button>
+            <Button variant="outline" asChild>
+              <a href="/gis">View GIS Dashboard</a>
+            </Button>
+            <Button variant="outline" asChild>
+              <a href="/install">Learn More</a>
+            </Button>
+          </div>
+          {!promptEvent && !installed && (
+            <p className="text-sm text-gray-500 mt-4">
+              Tip: Open this site in Chrome/Edge on Android to see the install prompt
+            </p>
+          )}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <p className="text-gray-400">
+              SAGIP - Synchronizing Action through Geohazard Information Platform
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              Built with Next.js PWA for offline disaster management
+            </p>
+          </div>
+        </div>
       </footer>
     </div>
   );
