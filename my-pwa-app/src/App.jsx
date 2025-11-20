@@ -1,19 +1,16 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import HomePage from "./pages/HomePage.jsx";
-import './App.css'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import HomePage from './pages/HomePage';
+import HazardSummary from './pages/HazardSummary';
+import Notifications from './pages/Notifications';
 
 export default function App() {
   return (
-    <div className="app">
-      {/* <h1>🌤 React PWA App</h1>
-      <p>This app is installable on mobile and works offline!</p>
-      <button onClick={() => alert("Hello from your PWA!")}>
-        Tap me
-      </button> */}
-      <HomePage />
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/hazard-summary" element={<HazardSummary />} />
+        <Route path="/notifications" element={<Notifications />} />
+      </Routes>
+    </Router>
   );
 }
-

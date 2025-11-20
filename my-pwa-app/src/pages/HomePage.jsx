@@ -1,4 +1,6 @@
+import { Link } from 'react-router-dom';
 import './HomePage.css';
+import Navbar from './Navbar';
 
 export default function HomePage() {
   const features = [
@@ -36,8 +38,26 @@ export default function HomePage() {
         </main>
       </div>
 
-      {/* Bottom bar */}
-      <footer className="h-16 bg-zinc-300 flex items-center justify-center relative">
+      {/* Bottom Navigation Bar */}
+      <footer className="h-16 bg-zinc-300 flex justify-around items-center relative rounded-t-xl">
+        {/* Home icon */}
+        <Link to="/" className="flex flex-col items-center">
+          <img src="https://placehold.co/24x24" alt="Home" className="w-6 h-6" />
+          <span className="text-sm font-inter text-zinc-900">Home</span>
+        </Link>
+
+        {/* Information icon */}
+        <Link to="/hazard-summary" className="flex flex-col items-center">
+          <img src="https://placehold.co/24x24" alt="Information" className="w-6 h-6" />
+          <span className="text-sm font-inter text-zinc-900">Info</span>
+        </Link>
+
+        {/* Notifications icon */}
+        <Link to="/notifications" className="flex flex-col items-center">
+          <img src="https://placehold.co/24x24" alt="Notifications" className="w-6 h-6" />
+          <span className="text-sm font-inter text-zinc-900">Alerts</span>
+        </Link>
+
         <div className="absolute bottom-2 w-20 h-[5px] bg-black/50 rounded-full" />
       </footer>
     </div>
