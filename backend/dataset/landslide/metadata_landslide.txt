@@ -1,0 +1,28 @@
+### NOAH Landslide Hazard Maps
+
+# Description:
+The DOST project under Project NOAH is entitled Enhancing Philippine Landslide Hazard Maps with LiDAR and High Resolution Imageries. The project aims to map landslide susceptibility using 1-meter resolution LiDAR and 5-meter resolution IfSAR-derived Digital Elevation Model data. Landslide hazards are merged outputs from three landslide models: Matterocking and Conefall for unstable slopes and runout zones of structurally controlled landslides, SINMAP (Stability Index Mapping) for shallow landslides, and Flow-R for debris flows. Conefall runout extents are classified as high-hazard areas and are equivalent to SINMAP areas with 1.0 ≥ SI ≥ 0. Similarly, Flow-R debris flow extents are classified as high hazard. Low to medium-hazard areas are clipped when merging landslide hazard maps with debris flow extents to make sure that they do not overlap with the high-hazard debris flow extent.  
+
+
+# Geographic Coverage
+Entire provinces in the Philippines
+
+# Attributes Information
+HAZ: Hazard classification indicator.
+1: Low hazard (yellow) Build only with continuous monitoring 
+2: Medium hazard (orange) Build only with slope protection and intervention; continuous monitoring 
+3: High hazard (red)  No dwelling zone
+
+# Coordinate System
+Datum: WGS 84
+EPSG Code: 4326
+
+# Data Format
+ESRI Shapefile
+
+# Use Constraints
+This data is licensed under Open Data Commons Open Database License (ODC-ODbL). If you alter or build upon our data, you may only distribute the result under the same license
+(ODC-ODbL).
+
+# Update Frequency
+As needed based on field validation and/or new data inputs

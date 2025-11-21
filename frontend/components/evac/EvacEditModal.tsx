@@ -5,11 +5,15 @@ import { useEvacContext } from './EvacContext'
 
 export const EvacEditModal: React.FC = () => {
   const { editModalOpen, editModalCenter, closeEditModal, updateCenter, addCenter } = useEvacContext()
-  const [form, setForm] = useState({ name: '', capacity: 0 })
+  const [form, setForm] = useState({ name: '', capacity: 0, occupancy: 0 })
 
   useEffect(() => {
     if (editModalCenter) {
-      setForm({ name: editModalCenter.name || '', capacity: Number(editModalCenter.capacity ?? 0) })
+      setForm({
+        name: editModalCenter.name || '',
+        capacity: Number(editModalCenter.capacity ?? 0),
+        occupancy: Number(editModalCenter.occupancy ?? editModalCenter.current ?? 0)
+      })
     }
   }, [editModalCenter])
 
@@ -25,6 +29,8 @@ export const EvacEditModal: React.FC = () => {
           <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="border rounded px-2 py-1" />
           <label className="text-xs">Capacity</label>
           <input value={String(form.capacity)} onChange={(e) => setForm((f) => ({ ...f, capacity: Number(e.target.value) }))} className="border rounded px-2 py-1" />
+          <label className="text-xs">Occupancy</label>
+          <input value={String(form.occupancy)} onChange={(e) => setForm((f) => ({ ...f, occupancy: Number(e.target.value) }))} className="border rounded px-2 py-1" />
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <button className="px-3 py-1 rounded bg-gray-200" onClick={closeEditModal}>Cancel</button>
@@ -34,9 +40,9 @@ export const EvacEditModal: React.FC = () => {
               // If center has an id, update. Otherwise create a new center.
               const hasId = editModalCenter && (editModalCenter.id || editModalCenter._id)
               if (hasId) {
-                await updateCenter(editModalCenter.id || editModalCenter._id, { name: form.name, capacity: form.capacity })
+                await updateCenter(editModalCenter.id || editModalCenter._id, { name: form.name, capacity: form.capacity, occupancy: form.occupancy, current: form.occupancy })
               } else {
-                await addCenter({ name: form.name, capacity: form.capacity, center: editModalCenter.center ?? editModalCenter.coordinates ?? null })
+                await addCenter({ name: form.name, capacity: form.capacity, occupancy: form.occupancy, current: form.occupancy, center: editModalCenter.center ?? editModalCenter.coordinates ?? null })
               }
             } catch (err) {
               console.error('Failed to save center', err)

@@ -74,26 +74,48 @@ Primary hazard data originates from authoritative repositories such as **UP NOAH
 - **Runtime Caching:** NetworkFirst for dynamic data; CacheFirst for OSM tiles (respect usage policies).  
 
 ## 6. Installation & Setup
-```bash
-# Clone
-git clone https://github.com/alexgaaranes/PJDSC-25.git
-cd PJDSC-25
 
-# Backend (FastAPI)
+### 1. Backend Preparation
+Initialize the Python environment and start the API server.
+```bash
 cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+make run
+```
 
-# (Optional) Run FastAPI dev server
-uvicorn main:app --reload --port 8000
+### 2. Dataset Preparation
+Process raw shapefiles into GeoJSON and deploy them to the frontend.
+```bash
+# Ensure backend venv is active
+source backend/venv/bin/activate
 
-# Frontend (Next.js)
-cd ../frontend
+# Run the converter script
+python backend/dataset/scripts/converter.py
+
+# Copy processed artifacts to frontend
+mkdir -p frontend/public/processed_data
+cp backend/dataset/processed_data/*.geojson frontend/public/processed_data/
+```
+
+### 3. Frontend Preparation (Web Dashboard)
+Install dependencies and start the dashboard.
+```bash
+cd frontend
 npm install
 npm run dev
 ```
-Open: `http://localhost:3000`
+Access at: `http://localhost:3000`
+
+### 4. Mobile Frontend Preparation (PWA)
+Install dependencies and start the mobile application.
+```bash
+cd mobile-frontend
+npm install
+npm run dev
+```
+Access at: `http://localhost:3001` (default Next.js port increment)
 
 ## 7. Development Workflow
 | Action | Command |

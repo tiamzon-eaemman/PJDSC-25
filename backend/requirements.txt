@@ -9,3 +9,4 @@ motor==3.1.1
 # Pin PyMongo to a 4.x release that is compatible with motor
 # PyMongo 5.x removed internal symbols that break motor 3.x
 pymongo==4.3.3
+pywebpush==1.14.0

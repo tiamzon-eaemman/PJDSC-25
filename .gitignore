@@ -1,2 +1,4 @@
 dataset/flood_data/
 dataset/landslide_data/
+backend/__pycache__/*
+backend/__pycache__

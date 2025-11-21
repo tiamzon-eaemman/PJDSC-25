@@ -59,6 +59,10 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME") or "pjdsc"
 MONGO_COLLECTION = os.getenv("MONGO_COLLECTION") or "evac_centers"
 LGU_PLANS_COLLECTION = os.getenv("LGU_PLANS_COLLECTION") or "lgu_plans"
+PUSH_SUBS_COLLECTION = os.getenv("PUSH_SUBS_COLLECTION") or "push_subscriptions"
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
+VAPID_EMAIL = os.getenv("VAPID_EMAIL") or "admin@example.com"
 
 client: Optional[AsyncIOMotorClient] = None
 db = None
@@ -79,6 +83,8 @@ class PyObjectId(ObjectId):
 class EvacCenterBase(BaseModel):
     name: str = Field(..., example="Purok 3 Evacuation Center")
     capacity: Optional[int] = Field(None, example=250)
+    current: Optional[int] = Field(0, ge=0, example=40, description="Current occupancy (0..capacity)")
+    occupancy: Optional[int] = Field(0, ge=0, example=40, description="New occupancy field")
     active: Optional[bool] = Field(True, example=True)
     standby: Optional[int] = Field(0, example=10)
     center: Optional[List[float]] = Field(None, example=[14.45, 120.98])  # [lat, lng]
@@ -91,6 +97,8 @@ class EvacCenterCreate(EvacCenterBase):
 class EvacCenterUpdate(BaseModel):
     name: Optional[str]
     capacity: Optional[int]
+    current: Optional[int]
+    occupancy: Optional[int]
     active: Optional[bool]
     standby: Optional[int]
     center: Optional[List[float]]
@@ -131,6 +139,8 @@ def _doc_to_center(doc: Dict[str, Any]) -> Dict[str, Any]:
     if "_id" in out:
         out["id"] = str(out["_id"])
         del out["_id"]
+    if "current" not in out:
+        out["current"] = 0
     return out
 
 
@@ -226,9 +236,21 @@ class TyphoonDetails(BaseModel):
     wind_kmh: int = Field(..., example=185)
     movement: str = Field(..., example="NW @ 20kph")
 
+class PlanHotline(BaseModel):
+    label: str = Field(..., example="Rescue Hotline")
+    number: str = Field(..., example="0917-123-4567")
+
+class PlanChecklistItem(BaseModel):
+    id: str = Field(..., example="go_bag")
+    text: str = Field(..., example="Prepare Go-Bag")
+    completed: bool = Field(False, example=False)
+
 class LGUSinglePlanPayload(BaseModel):
-    text: str = Field(..., example="Evacuation routings and resource allocations...")
+    text: str = Field(..., example="Evacuation routings, resource allocations, staging areas, timelines...")
     typhoon: TyphoonDetails
+    hotlines: Optional[List[PlanHotline]] = Field(default_factory=list, description="Hotline contacts included in the plan")
+    checklist: Optional[List[PlanChecklistItem]] = Field(default_factory=list, description="Preparedness checklist items")
+    map_link: Optional[str] = Field(None, example="https://maps.example.com/evac-route", description="Optional map link reference")
 
 @app.get('/plan')
 async def get_current_plan():
@@ -245,12 +267,15 @@ async def get_current_plan():
 
 @app.put('/plan')
 async def put_current_plan(payload: LGUSinglePlanPayload):
-    """Replace the single plan document with provided content."""
+    """Replace the single plan document with provided content, now including hotlines, checklist and optional map link."""
     coll = db[LGU_PLANS_COLLECTION]
     doc = {
         "key": "current",
         "text": payload.text,
         "typhoon": payload.typhoon.dict(),
+        "hotlines": [h.dict() for h in (payload.hotlines or [])],
+        "checklist": [c.dict() for c in (payload.checklist or [])],
+        "map_link": payload.map_link,
         "updated_at": __import__('datetime').datetime.utcnow().isoformat() + 'Z'
     }
     await coll.update_one({"key": "current"}, {"$set": doc}, upsert=True)
@@ -276,3 +301,95 @@ async def update_capacity(center_id: str, payload: CapacityUpdate):
         raise HTTPException(status_code=404, detail="Not found")
     doc = await coll.find_one({"_id": ObjectId(center_id)})
     return _doc_to_center(doc)
+
+class CurrentUpdate(BaseModel):
+    current: int = Field(..., ge=0, example=120)
+
+@app.put('/evac_centers/{center_id}/current')
+async def update_current(center_id: str, payload: CurrentUpdate):
+    coll = db[MONGO_COLLECTION]
+    if not ObjectId.is_valid(center_id):
+        raise HTTPException(status_code=400, detail="Invalid id")
+    doc = await coll.find_one({"_id": ObjectId(center_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    capacity = (doc.get('capacity') or 0)
+    if capacity and payload.current > capacity:
+        raise HTTPException(status_code=400, detail=f"Current must be between 0 and {capacity}")
+    if payload.current < 0:
+        raise HTTPException(status_code=400, detail="Current must be >= 0")
+    
+    # Auto-close if full
+    active = True
+    if capacity and payload.current >= capacity:
+        active = False
+        
+    await coll.update_one({"_id": ObjectId(center_id)}, {"$set": {"current": payload.current, "active": active}})
+    updated = await coll.find_one({"_id": ObjectId(center_id)})
+    return _doc_to_center(updated)
+
+# --- Web Push Subscription Endpoints ---
+class PushSubscription(BaseModel):
+    endpoint: str
+    keys: Dict[str, str]
+
+class PushSubscribePayload(BaseModel):
+    subscription: PushSubscription
+    label: Optional[str] = Field(None, description="Optional device label")
+
+@app.post('/push/subscribe')
+async def push_subscribe(payload: PushSubscribePayload):
+    """Store a web push subscription (upsert on endpoint)."""
+    if not VAPID_PUBLIC_KEY or not VAPID_PRIVATE_KEY:
+        raise HTTPException(status_code=503, detail='Push not configured')
+    coll = db[PUSH_SUBS_COLLECTION]
+    existing = await coll.find_one({"endpoint": payload.subscription.endpoint})
+    doc = {
+        "endpoint": payload.subscription.endpoint,
+        "keys": payload.subscription.keys,
+        "label": payload.label,
+        "updated_at": __import__('datetime').datetime.utcnow().isoformat() + 'Z'
+    }
+    if existing:
+        await coll.update_one({"_id": existing["_id"]}, {"$set": doc})
+    else:
+        await coll.insert_one(doc)
+    return {"saved": True}
+
+class PushTestPayload(BaseModel):
+    title: Optional[str] = 'SAGIP Test'
+    body: Optional[str] = 'This is a test notification.'
+    url: Optional[str] = '/' 
+
+def _send_web_push(subscription: Dict[str, Any], data: Dict[str, Any]):
+    try:
+        from pywebpush import webpush, WebPushException
+    except ImportError:
+        raise HTTPException(status_code=500, detail='pywebpush not installed')
+    try:
+        webpush(
+            subscription_info={
+                "endpoint": subscription['endpoint'],
+                "keys": subscription['keys']
+            },
+            data=__import__('json').dumps(data),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims={"sub": f"mailto:{VAPID_EMAIL}"}
+        )
+    except WebPushException as e:
+        logger.error('WebPush failed: %s', e)
+
+@app.post('/push/test')
+async def push_test(payload: PushTestPayload):
+    """Send a test push notification to all stored subscriptions."""
+    if not VAPID_PUBLIC_KEY or not VAPID_PRIVATE_KEY:
+        raise HTTPException(status_code=503, detail='Push not configured')
+    coll = db[PUSH_SUBS_COLLECTION]
+    subs = []
+    async for s in coll.find():
+        subs.append(s)
+    sent = 0
+    for s in subs:
+        _send_web_push(s, {"title": payload.title, "body": payload.body, "url": payload.url})
+        sent += 1
+    return {"attempted": sent}

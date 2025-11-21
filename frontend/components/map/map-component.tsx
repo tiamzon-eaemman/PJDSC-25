@@ -21,8 +21,9 @@ L.Icon.Default.mergeOptions({
 
 // --- Typhoon Data Simulation ---
 // Initial center for the map (Manila area, Philippines)
-const initialCenter: [number, number] = [14.5995, 120.9842];
-const initialZoom = 30;
+// Focus closer to Laguna / Batong Malake area
+const initialCenter: [number, number] = [14.15, 121.22];
+const initialZoom = 15;
 
 // Simulated GeoJSON-like data for a Typhoon Track Polyline
 const simulatedTyphoonTrack: [number, number][] = [
@@ -656,12 +657,12 @@ const MapComponent: React.FC<MapProps> = ({ centers = [], selectionMode: propSel
     // Custom icon for evacuation centers
     const evacIcon = L.divIcon({
         className: 'custom-evac-icon',
-        html: `<div style="background-color: #0ea5e9; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+        html: `<div style="background-color: #0ea5e9; width: 36px; height: 36px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 8px rgba(0,0,0,0.35);">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                </div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12],
-        popupAnchor: [0, -12]
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -16]
     })
 
     const MapController = () => {

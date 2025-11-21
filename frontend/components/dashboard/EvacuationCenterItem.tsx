@@ -15,9 +15,10 @@ interface Props {
 export const EvacuationCenterItem: React.FC<Props> = ({ center, selected = false, onEdit, onRemove }) => {
   // capacity may be a number or a string like "10/50". Normalize to compute occupancy ratio.
   let occupancyRatio = 0
+  const occupied = center.occupancy ?? center.current ?? center.occupied ?? 0
   try {
     if (!center) occupancyRatio = 0
-    else if (typeof center.capacity === 'number') occupancyRatio = Math.min(1, Math.max(0, (Number(center.occupied ?? 0) || 0) / Math.max(1, center.capacity)))
+    else if (typeof center.capacity === 'number') occupancyRatio = Math.min(1, Math.max(0, (Number(occupied) || 0) / Math.max(1, center.capacity)))
     else if (typeof center.capacity === 'string' && center.capacity.includes('/')) {
       const [num, den] = center.capacity.split('/').map((s: string) => Number(s.replace(/[^0-9.]/g, '')))
       occupancyRatio = !Number.isNaN(num) && !Number.isNaN(den) && den > 0 ? Math.min(1, Math.max(0, num / den)) : 0
@@ -30,13 +31,15 @@ export const EvacuationCenterItem: React.FC<Props> = ({ center, selected = false
   }
 
   const occupancyPct = Math.round(occupancyRatio * 100)
-  const statusVariant = occupancyPct >= 90 ? 'destructive' : occupancyPct >= 70 ? 'secondary' : 'outline'
+  const isClosed = center.active === false
+  const statusVariant = isClosed ? 'destructive' : (occupancyPct >= 90 ? 'destructive' : occupancyPct >= 70 ? 'secondary' : 'outline')
 
   return (
     <div
       className={cn(
         'group flex flex-col gap-2 rounded-xl border p-4 text-left transition-all bg-card/90 backdrop-blur shadow-sm hover:shadow-md',
-        selected ? 'ring-2 ring-primary/40' : 'hover:border-primary/30'
+        selected ? 'ring-2 ring-primary/40' : 'hover:border-primary/30',
+        isClosed ? 'opacity-70 bg-muted/50' : ''
       )}
     >
       <div className="flex items-start justify-between w-full">

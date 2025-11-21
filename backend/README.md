@@ -46,3 +46,32 @@ Notes
 - Geobuf reduces bandwidth but requires client-side decoding using `pbf` + `geobuf` (the frontend has been updated to attempt geobuf and fall back to GeoJSON).
 - CORS is enabled for `http://localhost:3000` and `http://127.0.0.1:3000`. Add additional origins via `HAZARD_API_ALLOW_ORIGIN` env var.
 
+Evacuation Centers & LGU Plan API
+---------------------------------
+Additional endpoints (FastAPI) support evacuation center CRUD and a single LGU plan document consumed by the mobile UI.
+
+Evac Center Endpoints:
+- `GET /evac_centers` list centers
+- `POST /evac_centers` create (fields: name, capacity?, active?, standby?, center?[lat,lng])
+- `GET /evac_centers/{id}` read one
+- `PUT /evac_centers/{id}` update any subset
+- `DELETE /evac_centers/{id}` remove
+- `PUT /evac_centers/{id}/capacity` capacity-only update
+
+LGU Plan Endpoints:
+- `GET /plan` fetch the current plan document (if exists)
+- `PUT /plan` replace current plan document
+
+PUT /plan Payload Schema:
+```
+{
+  "text": "Evacuation routings, resource allocations...",
+  "typhoon": { "name": "TYPHOON KRISTINE", "signal": 3, "wind_kmh": 185, "movement": "NW @ 20kph" },
+  "hotlines": [ { "label": "Rescue", "number": "0917-123-4567" } ],
+  "checklist": [ { "id": "go_bag", "text": "Prepare Go-Bag", "completed": false } ],
+  "map_link": "https://maps.example.com/evac-route"
+}
+```
+
+All new fields (`hotlines`, `checklist`, `map_link`) are optional; if omitted they default to empty arrays / null so older publishers remain compatible.
+
