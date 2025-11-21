@@ -1,190 +1,278 @@
-"""Minimal file-backed serverless-style backend.
+"""Backend service for evacuation center persistence.
 
-This service loads processed GeoJSON files from `../dataset/processed_data/` at startup,
-builds a Shapely STRtree spatial index, and exposes a single endpoint:
+This service provides a small MongoDB-backed CRUD API for evacuation centers.
 
-  GET /features/{layer}?min_lat=&min_lng=&max_lat=&max_lng=&limit=&format=geobuf
+Endpoints:
+- GET    /healthz
+- GET    /evac_centers           List centers
+- POST   /evac_centers           Create center
+- GET    /evac_centers/{id}      Read center
+- PUT    /evac_centers/{id}      Update center
+- DELETE /evac_centers/{id}      Delete center
 
-If `format=geobuf` or the request Accept header includes `application/x-protobuf`, the
-endpoint returns a Geobuf (protobuf) binary (Content-Type: application/x-protobuf).
-Otherwise it returns a standard GeoJSON FeatureCollection (application/json).
-
-This file intentionally avoids any database or Supabase code and is designed to be
-lightweight and serverless-friendly.
+The app uses `motor` for async MongoDB access. Configure the database URI with
+`MONGODB_URI` environment variable. If not set, the default URI provided by the
+project will be used (development only).
 """
 import os
-import json
 import logging
-from typing import Dict, Any
+from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from bson import ObjectId
+from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 
-from shapely.geometry import shape, box
-from shapely.strtree import STRtree
-import gzip
-
-try:
-    import pygeobuf
-    PYGEOBUF_AVAILABLE = True
-except Exception:
-    pygeobuf = None
-    PYGEOBUF_AVAILABLE = False
-
 load_dotenv()
-logger = logging.getLogger("hazard-backend")
+logger = logging.getLogger("evac-backend")
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Hazard GeoBuf Server")
+app = FastAPI(title="Evacuation Centers API")
 
-# CORS configuration
-# - By default allow local Next.js dev origins
-# - You can set `HAZARD_API_ALLOW_ORIGIN="*"` to allow all origins (dev only).
-# - Or set `HAZARD_API_ALLOW_ORIGIN` to a comma-separated list of allowed origins.
-default_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+# CORS config
+default_origins = ["http://localhost:3000", "http://127.0.0.1:3000", "*"]
 env_origins = os.getenv("HAZARD_API_ALLOW_ORIGIN")
 if env_origins:
-    # allow wildcard '*' or comma-separated origins
     if env_origins.strip() == "*":
         allow_all = True
         allow_origins = ["*"]
     else:
         allow_all = False
-        # merge default with provided ones (avoid duplicates)
         provided = [o.strip() for o in env_origins.split(",") if o.strip()]
         allow_origins = list(dict.fromkeys(default_origins + provided))
 else:
     allow_all = False
     allow_origins = default_origins
 
-# If allow_all ("*"), we must not allow credentials per CORS rules.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
     allow_credentials=(not allow_all),
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# Map logical layer name -> processed geojson path
-BASE_DIR = os.path.dirname(__file__)
-LAYER_FILES = {
-    "flood": os.path.join(BASE_DIR, "..", "dataset", "processed_data", "Laguna_Flood_5year.geojson"),
-    "landslide": os.path.join(BASE_DIR, "..", "dataset", "processed_data", "Laguna_LandslideHazards.geojson"),
-}
+# MongoDB setup
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME") or "pjdsc"
+MONGO_COLLECTION = os.getenv("MONGO_COLLECTION") or "evac_centers"
+LGU_PLANS_COLLECTION = os.getenv("LGU_PLANS_COLLECTION") or "lgu_plans"
 
-# In-memory cache: features list and STRtree per layer
-LAYER_CACHE: Dict[str, Dict[str, Any]] = {}
+client: Optional[AsyncIOMotorClient] = None
+db = None
 
 
-def load_layer(layer_name: str) -> None:
-    """Load GeoJSON file and build STRtree of geometries for the named layer."""
-    path = LAYER_FILES.get(layer_name)
-    if not path or not os.path.exists(path):
-        logger.warning("Processed file not found for %s: %s", layer_name, path)
-        return
+class PyObjectId(ObjectId):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
 
-    with open(path, "r", encoding="utf-8") as fh:
-        data = json.load(fh)
+    @classmethod
+    def validate(cls, v):
+        if not ObjectId.is_valid(v):
+            raise ValueError("Invalid ObjectId")
+        return ObjectId(v)
 
-    features = data.get("features", []) if isinstance(data, dict) else []
-    geoms = []
-    id_map = {}
-    for i, feat in enumerate(features):
-        geom_json = feat.get("geometry")
-        if not geom_json:
-            continue
-        try:
-            g = shape(geom_json)
-        except Exception:
-            continue
-        geoms.append(g)
-        id_map[id(g)] = i
 
-    tree = STRtree(geoms) if geoms else None
-    LAYER_CACHE[layer_name] = {"features": features, "geoms": geoms, "tree": tree, "id_map": id_map}
-    logger.info("Loaded layer %s (%d geometries)", layer_name, len(geoms))
+class EvacCenterBase(BaseModel):
+    name: str = Field(..., example="Purok 3 Evacuation Center")
+    capacity: Optional[int] = Field(None, example=250)
+    active: Optional[bool] = Field(True, example=True)
+    standby: Optional[int] = Field(0, example=10)
+    center: Optional[List[float]] = Field(None, example=[14.45, 120.98])  # [lat, lng]
+
+
+class EvacCenterCreate(EvacCenterBase):
+    pass
+
+
+class EvacCenterUpdate(BaseModel):
+    name: Optional[str]
+    capacity: Optional[int]
+    active: Optional[bool]
+    standby: Optional[int]
+    center: Optional[List[float]]
+
+
+class EvacCenterInDB(EvacCenterBase):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+
+    class Config:
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: lambda x: str(x)}
 
 
 @app.on_event("startup")
-def startup_event():
-    # Preload layers
-    for layer in list(LAYER_FILES.keys()):
-        load_layer(layer)
+async def startup():
+    global client, db
+    client = AsyncIOMotorClient(MONGODB_URI)
+    db = client[MONGO_DB_NAME]
+    logger.info("Connected to MongoDB %s (collection=%s)", MONGODB_URI.split('@')[-1], MONGO_COLLECTION)
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    global client
+    if client:
+        client.close()
 
 
 @app.get("/healthz")
-def healthz():
+async def healthz():
     return {"status": "ok"}
 
 
-@app.get("/features/{layer_name}")
-def features(layer_name: str, min_lat: float, min_lng: float, max_lat: float, max_lng: float, limit: int = 1000, request: Request = None):
-    """Return features intersecting the bbox. Supports Geobuf if requested via `format=geobuf` or Accept header."""
-    if layer_name not in LAYER_FILES:
-        raise HTTPException(status_code=404, detail="Unknown layer")
+def _doc_to_center(doc: Dict[str, Any]) -> Dict[str, Any]:
+    if not doc:
+        return {}
+    out = {**doc}
+    if "_id" in out:
+        out["id"] = str(out["_id"])
+        del out["_id"]
+    return out
 
-    cache = LAYER_CACHE.get(layer_name)
-    if not cache or not cache.get("tree"):
-        raise HTTPException(status_code=500, detail=f"Layer {layer_name} not loaded")
 
-    query_box = box(min_lng, min_lat, max_lng, max_lat)
-    candidates = cache["tree"].query(query_box)
+@app.get("/evac_centers")
+async def list_centers():
+    coll = db[MONGO_COLLECTION]
+    docs = []
+    async for d in coll.find():
+        docs.append(_doc_to_center(d))
+    return {"count": len(docs), "items": docs}
 
-    features = []
-    for g in candidates:
-        try:
-            if not g.intersects(query_box):
-                continue
-        except Exception:
-            continue
-        idx = cache["id_map"].get(id(g))
-        if idx is None:
-            try:
-                idx = cache["geoms"].index(g)
-            except ValueError:
-                continue
-        feat = cache["features"][idx]
-        features.append(feat)
-        if len(features) >= limit:
-            break
 
-    fc = {"type": "FeatureCollection", "features": features}
+@app.post("/evac_centers", status_code=201)
+async def create_center(payload: EvacCenterCreate = Body(...)):
+    coll = db[MONGO_COLLECTION]
+    doc = payload.dict()
+    res = await coll.insert_one(doc)
+    created = await coll.find_one({"_id": res.inserted_id})
+    return _doc_to_center(created)
 
-    # Decide output format: if client asked for geobuf but server can't provide it,
-    # fall back to compressed JSON. Support `format=geobuf` or `format=compressed`.
-    fmt = None
-    if request:
-        fmt = request.query_params.get("format")
-        if not fmt:
-            accept = request.headers.get("accept", "")
-            if "application/x-protobuf" in accept or "application/vnd.mapbox-vector-tile" in accept:
-                fmt = "geobuf"
 
-    # If geobuf requested and available, return it
-    if fmt == "geobuf":
-        if 'pygeobuf' in globals() and PYGEOBUF_AVAILABLE:
-            try:
-                pb = pygeobuf.encode(fc)
-                return Response(content=pb, media_type="application/x-protobuf")
-            except Exception as e:
-                logger.exception("Failed to encode geobuf, falling back to compressed JSON")
-                fmt = "compressed"
-        else:
-            # indicate not available by falling back to compressed
-            fmt = "compressed"
+@app.get("/evac_centers/{center_id}")
+async def get_center(center_id: str):
+    coll = db[MONGO_COLLECTION]
+    if not ObjectId.is_valid(center_id):
+        raise HTTPException(status_code=400, detail="Invalid id")
+    doc = await coll.find_one({"_id": ObjectId(center_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    return _doc_to_center(doc)
 
-    # If compressed requested, return gzipped JSON (browser will decode automatically)
-    if fmt == "compressed":
-        try:
-            raw = json.dumps(fc).encode("utf-8")
-            gz = gzip.compress(raw)
-            headers = {"Content-Encoding": "gzip"}
-            return Response(content=gz, media_type="application/json", headers=headers)
-        except Exception:
-            logger.exception("Failed to produce compressed response; returning plain JSON")
 
-    # Default: return normal JSON
-    return JSONResponse(fc)
+@app.put("/evac_centers/{center_id}")
+async def update_center(center_id: str, payload: EvacCenterUpdate = Body(...)):
+    coll = db[MONGO_COLLECTION]
+    if not ObjectId.is_valid(center_id):
+        raise HTTPException(status_code=400, detail="Invalid id")
+    update = {k: v for k, v in payload.dict().items() if v is not None}
+    if not update:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    res = await coll.update_one({"_id": ObjectId(center_id)}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    doc = await coll.find_one({"_id": ObjectId(center_id)})
+    return _doc_to_center(doc)
+
+
+@app.delete("/evac_centers/{center_id}")
+async def delete_center(center_id: str):
+    coll = db[MONGO_COLLECTION]
+    if not ObjectId.is_valid(center_id):
+        raise HTTPException(status_code=400, detail="Invalid id")
+    res = await coll.delete_one({"_id": ObjectId(center_id)})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"deleted": True}
+
+
+@app.get('/mobile/plans')
+async def list_lgu_plans():
+    coll = db[LGU_PLANS_COLLECTION]
+    docs = []
+    async for d in coll.find():
+        out = {**d}
+        if "_id" in out:
+            out["id"] = str(out["_id"]) 
+            del out["_id"]
+        docs.append(out)
+    return {"count": len(docs), "items": docs}
+
+
+@app.get('/mobile/plans/{plan_id}')
+async def get_lgu_plan(plan_id: str):
+    coll = db[LGU_PLANS_COLLECTION]
+    # allow both ObjectId and string ids
+    if ObjectId.is_valid(plan_id):
+        doc = await coll.find_one({"_id": ObjectId(plan_id)})
+    else:
+        doc = await coll.find_one({"id": plan_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail='Not found')
+    out = {**doc}
+    if "_id" in out:
+        out["id"] = str(out["_id"]) 
+        del out["_id"]
+    return out
+
+# --- Single LGU Plan Endpoints ---
+
+class TyphoonDetails(BaseModel):
+    name: str = Field(..., example="TYPHOON KRISTINE")
+    signal: int = Field(..., example=3)
+    wind_kmh: int = Field(..., example=185)
+    movement: str = Field(..., example="NW @ 20kph")
+
+class LGUSinglePlanPayload(BaseModel):
+    text: str = Field(..., example="Evacuation routings and resource allocations...")
+    typhoon: TyphoonDetails
+
+@app.get('/plan')
+async def get_current_plan():
+    """Return the currently published plan document (single resource)."""
+    coll = db[LGU_PLANS_COLLECTION]
+    doc = await coll.find_one({"key": "current"})
+    if not doc:
+        return {"exists": False}
+    out = {**doc}
+    if "_id" in out:
+        out["id"] = str(out["_id"])
+        del out["_id"]
+    return {"exists": True, "plan": out}
+
+@app.put('/plan')
+async def put_current_plan(payload: LGUSinglePlanPayload):
+    """Replace the single plan document with provided content."""
+    coll = db[LGU_PLANS_COLLECTION]
+    doc = {
+        "key": "current",
+        "text": payload.text,
+        "typhoon": payload.typhoon.dict(),
+        "updated_at": __import__('datetime').datetime.utcnow().isoformat() + 'Z'
+    }
+    await coll.update_one({"key": "current"}, {"$set": doc}, upsert=True)
+    stored = await coll.find_one({"key": "current"})
+    out = {**stored}
+    if "_id" in out:
+        out["id"] = str(out["_id"])
+        del out["_id"]
+    return {"updated": True, "plan": out}
+
+# --- Capacity-only update endpoint ---
+class CapacityUpdate(BaseModel):
+    capacity: int = Field(..., ge=0, example=300)
+
+@app.put('/evac_centers/{center_id}/capacity')
+async def update_capacity(center_id: str, payload: CapacityUpdate):
+    """Update only the capacity of a center. Capacity must be >= 0."""
+    coll = db[MONGO_COLLECTION]
+    if not ObjectId.is_valid(center_id):
+        raise HTTPException(status_code=400, detail="Invalid id")
+    res = await coll.update_one({"_id": ObjectId(center_id)}, {"$set": {"capacity": payload.capacity}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    doc = await coll.find_one({"_id": ObjectId(center_id)})
+    return _doc_to_center(doc)

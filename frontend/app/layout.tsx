@@ -14,6 +14,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className={inter.className}>
+      <head>
+        <meta name="theme-color" content="#0ea5e9" />
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/icon-192.png" sizes="192x192" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="SAGIP" />
+      </head>
       <body className="font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           {children}
