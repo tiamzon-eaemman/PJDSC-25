@@ -55,7 +55,7 @@ export const MobileMap: React.FC<MobileMapProps> = ({ centers, userPosition }) =
 
   return (
     <div className="w-full h-72 rounded overflow-hidden border bg-muted">
-      <MapContainer center={defaultCenter} zoom={14} style={{ height: '100%', width: '100%' }} whenCreated={(m) => { mapRef.current = m }}>
+      <MapContainer center={defaultCenter} zoom={14} style={{ height: '100%', width: '100%' }} ref={mapRef}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
         {geoData && (
           <GeoJSON
