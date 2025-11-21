@@ -1,4 +1,11 @@
 dataset/flood_data/
+
 dataset/landslide_data/
+
 backend/__pycache__/*
+
 backend/__pycache__
+
+config.bat
+
+node_modules
