@@ -117,7 +117,7 @@ const MobilePlanPage: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 to-slate-100 dark:from-neutral-950 dark:to-neutral-900">
       {/* Header */}
-      <div className="px-4 pt-4 flex items-center justify-between">
+      <div className="px-4 pt-4 flex items-center justify-between bg-gradient-to-b from-white/90 to-white/40 dark:from-neutral-950/80 dark:to-neutral-900/40 backdrop-blur sticky top-0 z-50 border-b">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold">S</div>
           <div className="flex flex-col">
@@ -131,48 +131,52 @@ const MobilePlanPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Typhoon Status Card */}
-      <div className="px-4">
-        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 shadow-sm backdrop-blur-sm p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-destructive text-white font-bold text-sm">⚠</div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold">TYPHOON KRISTINE</span>
-              <span className="text-[11px] text-muted-foreground">Critical</span>
-              <div className="flex gap-3 mt-1 text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1"><span className="opacity-70">Wind</span> 185 km/h</span>
-                <span>NW @ 20kph</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] text-muted-foreground">Signal</span>
-            <div className="w-12 h-12 rounded-full bg-destructive flex items-center justify-center text-white font-bold text-xl">3</div>
-          </div>
+      {/* Sticky Action Buttons (moved above map) */}
+      <div className="px-4 mt-3">
+        <div className="rounded-xl bg-white/90 dark:bg-neutral-900/80 backdrop-blur border shadow-sm p-3 flex items-center justify-between gap-3">
+          <button
+            className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+            onClick={async () => { await Promise.all([loadPlan(), loadCenters()]) }}
+            disabled={loadingPlan || loadingCenters}
+          >{(loadingPlan || loadingCenters) ? 'Refreshing…' : 'Refresh Data'}</button>
+          <button
+            className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+            onClick={computeNearest}
+          >Recompute Nearest</button>
         </div>
       </div>
 
-      <div className="px-4 mt-6 flex-1 flex flex-col gap-6">
+      <div className="px-4 mt-5 flex-1 flex flex-col gap-6 pb-8">
         <h2 className="text-lg font-semibold">LGU Response Plan</h2>
 
-      <div className="space-y-2">
-        {loadingPlan && <div className="text-xs text-muted-foreground">Loading plan…</div>}
-        {!loadingPlan && !plan && <div className="text-xs text-muted-foreground">No plan published yet.</div>}
-        {plan && (
-          <div className="rounded-lg border bg-white/70 dark:bg-neutral-900/70 backdrop-blur p-4 shadow-sm">
-            <div className="flex flex-wrap gap-4 text-xs mb-2">
-              <span className="font-semibold">{plan.typhoon?.name || 'Typhoon'}</span>
-              <span>Signal: {plan.typhoon?.signal}</span>
-              <span>Wind: {plan.typhoon?.wind_kmh} km/h</span>
-              <span>Movement: {plan.typhoon?.movement}</span>
-              <span className="opacity-70">Updated: {plan.updated_at ? new Date(plan.updated_at).toLocaleString() : ''}</span>
+        <div className="space-y-2">
+          {loadingPlan && <div className="text-xs text-muted-foreground">Loading plan…</div>}
+          {!loadingPlan && !plan && <div className="text-xs text-muted-foreground">No plan published yet.</div>}
+          {plan && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 shadow-sm backdrop-blur-sm p-4 space-y-3">
+              {/* Styled Typhoon Details */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-destructive text-white font-bold text-sm">⚠</div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold">{(plan.typhoon?.name || 'Typhoon').toUpperCase()}</span>
+                    <span className="text-[11px] text-muted-foreground">Signal {plan.typhoon?.signal}</span>
+                    <div className="flex gap-3 mt-1 text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1"><span className="opacity-70">Wind</span> {plan.typhoon?.wind_kmh} km/h</span>
+                      <span>{plan.typhoon?.movement}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] text-muted-foreground">Updated</span>
+                  <div className="text-[10px] font-medium max-w-[90px] text-center">{plan.updated_at ? new Date(plan.updated_at).toLocaleString() : ''}</div>
+                </div>
+              </div>
+              {/* Plan Text Plain */}
+              <div className="text-sm whitespace-pre-wrap leading-relaxed bg-white/60 dark:bg-neutral-900/60 border rounded p-3">{plan.text}</div>
             </div>
-            <div className="text-sm whitespace-pre-wrap leading-relaxed">
-              {plan.text}
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Nearest Evacuation Centers</h3>
@@ -194,29 +198,13 @@ const MobilePlanPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="space-y-2 mb-24">
-        <h3 className="text-sm font-semibold">Map View</h3>
-        <div className="rounded-lg overflow-hidden border shadow-sm">
-          <MobileMap centers={centers} userPosition={userPos} />
-        </div>
-      </div>
-      {/* Close inner content container */}
-      </div>
-      {/* Sticky Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-4 pointer-events-none">
-        <div className="mx-auto max-w-md w-full">
-          <div className="pointer-events-auto rounded-xl bg-white/90 dark:bg-neutral-900/80 backdrop-blur border shadow-lg p-3 flex items-center justify-between gap-3">
-            <button
-              className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-              onClick={async () => { await Promise.all([loadPlan(), loadCenters()]) }}
-              disabled={loadingPlan || loadingCenters}
-            >{(loadingPlan || loadingCenters) ? 'Refreshing…' : 'Refresh Data'}</button>
-            <button
-              className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-              onClick={computeNearest}
-            >Recompute Nearest</button>
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold">Map View</h3>
+          <div className="rounded-lg overflow-hidden border shadow-sm">
+            <MobileMap centers={centers} userPosition={userPos} />
           </div>
         </div>
+        {/* Close inner content container */}
       </div>
     </div>
   )

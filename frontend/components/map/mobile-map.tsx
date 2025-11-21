@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
+import React, { useEffect, useState, useRef } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, GeoJSON } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import icon from 'leaflet/dist/images/marker-icon.png'
@@ -30,12 +30,40 @@ export interface MobileMapProps {
 }
 
 export const MobileMap: React.FC<MobileMapProps> = ({ centers, userPosition }) => {
+  const [geoData, setGeoData] = useState<any | null>(null)
+  const mapRef = useRef<L.Map | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/map.geojson')
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setGeoData(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
   const defaultCenter: [number, number] = userPosition || [14.1819, 121.2364]
+
+  const handleGeoJsonAdd = (layer: L.GeoJSON) => {
+    try {
+      const b = layer.getBounds()
+      if (mapRef.current && b.isValid()) {
+        mapRef.current.fitBounds(b, { padding: [20, 20] })
+      }
+    } catch {}
+  }
 
   return (
     <div className="w-full h-72 rounded overflow-hidden border bg-muted">
-      <MapContainer center={defaultCenter} zoom={14} style={{ height: '100%', width: '100%' }}>
+      <MapContainer center={defaultCenter} zoom={14} style={{ height: '100%', width: '100%' }} whenCreated={(m) => { mapRef.current = m }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
+        {geoData && (
+          <GeoJSON
+            data={geoData}
+            style={() => ({ color: '#2563eb', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.15 })}
+            eventHandlers={{ add: (e) => handleGeoJsonAdd(e.target as L.GeoJSON) }}
+          />
+        )}
         {userPosition && (
           <Marker position={userPosition} icon={userIcon}>
             <Popup>Your Location</Popup>

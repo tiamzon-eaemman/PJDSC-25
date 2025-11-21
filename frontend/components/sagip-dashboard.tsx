@@ -463,20 +463,32 @@ function DashboardContent() {
             {viewPlanOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center">
                 <div className="absolute inset-0 bg-black/40" onClick={() => setViewPlanOpen(false)} />
-                <div className="relative w-[500px] max-w-[95vw] bg-white dark:bg-neutral-900 rounded shadow-lg p-5 space-y-4 z-50 border">
+                <div className="relative w-[520px] max-w-[95vw] bg-white dark:bg-neutral-900 rounded-xl shadow-lg p-5 space-y-5 z-50 border">
                   <h3 className="text-sm font-semibold">Current Published Plan</h3>
                   {loadingCurrentPlan && <div className="text-xs">Loading current plan…</div>}
                   {!loadingCurrentPlan && !currentPlan && <div className="text-xs text-muted-foreground">No plan published.</div>}
                   {currentPlan && (
                     <>
-                      <div className="text-xs flex flex-wrap gap-3 bg-muted/40 rounded p-2">
-                        <span className="font-semibold">{currentPlan.typhoon?.name || 'Typhoon'}</span>
-                        <span>Signal: {currentPlan.typhoon?.signal}</span>
-                        <span>Wind: {currentPlan.typhoon?.wind_kmh} km/h</span>
-                        <span>Movement: {currentPlan.typhoon?.movement}</span>
-                        <span className="opacity-70">Updated: {currentPlan.updated_at ? new Date(currentPlan.updated_at).toLocaleString() : ''}</span>
+                      {/* Styled Typhoon Card */}
+                      <div className="rounded-lg border border-destructive/30 bg-destructive/5 backdrop-blur-sm p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-destructive text-white font-bold text-sm">⚠</div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold">{(currentPlan.typhoon?.name || 'Typhoon').toUpperCase()}</span>
+                            <span className="text-[11px] text-muted-foreground">Signal {currentPlan.typhoon?.signal}</span>
+                            <div className="flex gap-3 mt-1 text-[11px] text-muted-foreground">
+                              <span className="flex items-center gap-1"><span className="opacity-70">Wind</span> {currentPlan.typhoon?.wind_kmh} km/h</span>
+                              <span>{currentPlan.typhoon?.movement}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-muted-foreground">Updated</span>
+                          <div className="text-[10px] font-medium max-w-[120px] text-center">{currentPlan.updated_at ? new Date(currentPlan.updated_at).toLocaleString() : ''}</div>
+                        </div>
                       </div>
-                      <div className="text-sm whitespace-pre-wrap max-h-60 overflow-auto leading-relaxed border rounded p-3 bg-muted/20">
+                      {/* Plan Text */}
+                      <div className="text-sm whitespace-pre-wrap max-h-64 overflow-auto leading-relaxed border rounded p-4 bg-white/60 dark:bg-neutral-900/60">
                         {currentPlan.text}
                       </div>
                     </>
